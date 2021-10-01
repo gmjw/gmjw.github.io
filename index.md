@@ -14,6 +14,6 @@ can be derived and applied.
 
 [EM algorithm derivation](https://gmjw.github.io/notebooks/em_algorithm_derivation)
 
-[Example 1: coin biases](https://gmjw.github.io/notebooks/em_algorithm_coin_biases)
+[Example 1: coin biases](https://gmjw.github.io/notebooks/em_algorithm_coin_example)
 
 [Example 2: geyser eruptions](https://gmjw.github.io/notebooks/em_algorithm_gaussian_mixture) (not yet quite finished!)
