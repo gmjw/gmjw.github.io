@@ -3,7 +3,7 @@
 <head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>inverting_conditionality</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<title>em_algorithm_derivation</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
 
 
 
@@ -13971,283 +13971,157 @@ a.anchor-link {
 
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="The-problem">The problem<a class="anchor-link" href="#The-problem">&#182;</a></h3><p>Let's prove another really useful result that will crop up a lot in many areas of Bayesian probability, notably the derivation of the Kalman filter.</p>
-<p>Suppose we have a situation where</p>
-$$X \sim N(\mu, \sigma^2)$$<p>and the distribution of $Y$ <b>conditional on the value of</b> $X$ is</p>
-$$ Y | X \sim N(aX + b, \tau^2)$$<p>(in words: when we know the value of $X$, $Y$ is Normally distributed with a mean of $aX + b$, and a variance of $\tau^2$)</p>
-<p>The question we want to answer is: in this situation, what is the conditional distribution of $X$ given $Y$?</p>
-<hr>
+<h2 id="Expectation-Maximisation">Expectation Maximisation<a class="anchor-link" href="#Expectation-Maximisation">&#182;</a></h2><p>Expectation maximisation is a really clever technique for estimating the most likely values of some parameters, in a situation where we have both observed and unobserved (hidden) data.</p>
+<p>This notebook aims to lay out the mathematics behind the algorithm as clearly as possible.</p>
+
 </div>
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Bayes'-rule">Bayes' rule<a class="anchor-link" href="#Bayes'-rule">&#182;</a></h3><p>As you might imagine, when we want to "invert the conditionality" like this (go from $P(Y | X)$ to $P(X | Y)$), Bayes' rule is the key.</p>
-<p>By Bayes' rule,</p>
-$$
+<h3 id="Preliminaries">Preliminaries<a class="anchor-link" href="#Preliminaries">&#182;</a></h3><p>Suppose we have</p>
+<ul>
+<li>some observed data $z$, </li>
+<li>unobserved (hidden) data $x$, </li>
+<li>and parameters $\theta$ we are trying to estimate.</li>
+</ul>
+<blockquote><p>I like this labelling of variables because the word "observed" contains a "z" sound. It makes it a bit easier to remember what is what in the equations.</p>
+</blockquote>
+<p>A sensible estimate of the parameters $\hat{\theta}$ would be the parameters that maximise the log likelihood of the observed data $x$.</p>
+<p>That is, we would like find the parameters that maximise</p>
+$$\log P(z |\ \theta)$$<p>Note that for any distribution $Q(x)$ on $x$, the unobserved variables, and any particular value of $\theta$, $\theta_p$ say, we have</p>
 \begin{align}
-P(X = x | Y = y) = \frac{ P(Y = y | X = x) P(X = x) }{ P(Y = y) }
+&amp; \log P(z |\ \theta_p) \\ \nonumber
+&amp; = \log \left( \sum_x P(z, x\ |\ \theta_p) \right) \\
+&amp; = \log \left( \sum_x Q(x) \frac{ P(z, x\ |\ \theta_p)}{Q(x)} \right) \\
+&amp; \ge \sum_x Q(x) \log \left( \frac{ P(z, x\ |\ \theta_p)}{Q(x)} \right) \\
 \end{align}
-$$
 </div>
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Shape-of-the-distribution">Shape of the distribution<a class="anchor-link" href="#Shape-of-the-distribution">&#182;</a></h3><p>Notice that the distribution we are interested in is for $X$. What we care about is the <em>shape</em> of this distribution: how it changes as $x$ changes. And only terms on the right hand side that involve $x$ can influence that.</p>
-<p>So, in fact, we can forget about the denominator here, becaue it doesn't have any $x$ terms in it, so it is effectively just a multiplicative constant. It affects the <em>height</em> of the final distribution, but not its shape.</p>
-<p>So we can forget about the denominator for now. (Since we know that the final distribution we find must sum to 1, we can use that condition to determine its height).</p>
-<p>So
+<blockquote><p>The last inequality here holds via Jensen's inequality, since the penultimate line is the logarithm of an average (where the average is over the distribution of the unobserved variables $Q(x)$). Since log is a concave function, the average of the logarithm'ed quantity is less than or equal to the logarithm of the average of the quantity.</p>
+</blockquote>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>In particular, the above inequality holds when the distribution $Q(x)$ is the distribution of $x$ given the observed data $z$ and <em>any</em> parameters $\theta$, $P(x | z, \theta)$.</p>
+<p>And in fact, it holds <strong>with equality</strong> in the case when $\theta = \theta_p$, since the expression in the last line above (on the right hand side of the inequality) is</p>
+\begin{align*}
+&amp; \sum_x P(x | z, \theta_p) \log \left( \frac{ P(z, x|\ \theta_p)}{P(x | z, \theta_p)} \right) \\
+&amp; = \sum_x P(x |\ z, \theta_p) \log  P(z|\ \theta_p) \\
+&amp; = \log  P(z|\ \theta_p) \sum_x P(x | z, \theta_p) \\
+&amp; = \log  P(z|\ \theta_p) 
+\end{align*}
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<blockquote><p>To move between the first and second lines above, we have simply applied Bayes' theorem: $$P(z, x|\ \theta_p) = P(x | z, \theta_p) P(z | \theta_p)$$</p>
+</blockquote>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Since the inequality above holds for any particular value of our parameters, $\theta_p$, we can also say that it holds in general for $\log P(x |\ \theta)$ as a function of $\theta$.</p>
+<p>If we define a function $f(\theta)$ to be</p>
 $$
-P(X = x | Y = y) \propto P(Y = y | X = x) P(X = x)
+f(\theta) = \sum_x Q(x) \log \left( \frac{ P(z, x\ |\ \theta)}{Q(x)} \right)
+$$<p>then that function is a lower bound for the function</p>
+$$
+\log P(z |\ \theta)
+$$<p>which is the log likelihood we'd like to maximise.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="An-iterative-update-formula-for-$%5Ctheta$">An iterative update formula for $\theta$<a class="anchor-link" href="#An-iterative-update-formula-for-$%5Ctheta$">&#182;</a></h3><p>The above all seems a bit abstract right now, but I hope it is fairly clear - we haven't used any advanced mathematics to derive the results above.</p>
+<p>Based on what we've shown, we can now define an iterative update procedure for finding a best estimate of $\theta$.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Suppose we have a current set of parameters, our current best guess, $\theta^{(t)}$. We wish to form a better guess from these parameters.</p>
+<p>We can do so as follows: let</p>
+$$
+\theta^{(t + 1)} = \arg\!\max_{\theta}\ g_t(\theta)
+$$<p>where 
+$$
+g_t(\theta) = \sum_x P(x | z, \theta^{(t)}) \log \left( \frac{ P(z, x |\ \theta)}{P(x | z, \theta^{(t)})} \right) \\
 $$</p>
 
 </div>
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Expand-terms">Expand terms<a class="anchor-link" href="#Expand-terms">&#182;</a></h3><p>We can now expand the two terms on the right-hand side:</p>
-$$
-\begin{align}
-P(X = x | Y = y) &amp; \propto P(Y = y | X = x) P(X = x) \\
-            &amp; = \frac{1}{\sqrt{2 \pi} \tau} \exp \left\{ -\frac{1}{2} \frac{(y - (ax + b))^2}{\tau^2} \right\} \frac{1}{\sqrt{2 \pi} \sigma} \exp \left\{ -\frac{1}{2} \frac{(x - \mu)^2}{\sigma^2} \right\}  \\
-             &amp; \propto \exp \left\{ -\frac{1}{2} \left[ \frac{(y - (ax + b))^2}{\tau^2} + \frac{(x - \mu)^2}{\sigma^2} \right] \right\} \\
-\end{align}
-$$<p>In the last line here we have once again discarded any constant terms - remember, it's only terms that involve $x$ that can affect the shape of the distribution.</p>
-
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Focus-on-the-exponent">Focus on the exponent<a class="anchor-link" href="#Focus-on-the-exponent">&#182;</a></h3><p>Let's focus on the term inside the square brackets in the exponent. Let's expand all the brackets.</p>
-$$
-\begin{align}
-E_1 &amp; = \frac{(y - (ax + b))^2}{\tau^2} + \frac{(x - \mu)^2}{\sigma^2} \\
-  &amp; = \frac{1}{\tau^2 \sigma^2} \left[ \sigma^2 (y - (ax + b))^2 + \tau^2 (x - \mu)^2 \right] \\
-  &amp; = \frac{1}{\tau^2 \sigma^2} \left[ \sigma^2 \left(y^2 - 2(ax + b)y + (ax + b)^2 \right) + \tau^2 \left(x^2 - 2x\mu + \mu^2 \right) \right] \\
-  &amp; = \frac{1}{\tau^2 \sigma^2} \left[ \sigma^2 \left(y^2 - 2axy -2by + a^2x^2 + 2abx + b^2 \right) + \tau^2 \left(x^2 - 2x\mu + \mu^2 \right) \right] \\
-\end{align}
-$$
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Collect-terms">Collect terms<a class="anchor-link" href="#Collect-terms">&#182;</a></h3><p>Now we want to separate all the terms involving $x^2$, all those involving $x$, and all constant terms.</p>
-$$
-\begin{align}
-E_1 &amp; = \frac{1}{\tau^2 \sigma^2} \left[ (\sigma^2 a^2 + \tau^2) x^2 - 2 (\sigma^2ay - \sigma^2 ab + \tau^2\mu) x + \sigma^2 (y^2 - 2by + b^2) + \tau^2 \mu^2 \right] \\
-\end{align}
-$$<p>Notice that the last term here once again does not involve $x$. When it is raised to the power of $e$ in the full pdf expression, it simply becomes another multiplicative constant. So we can forget about it - it does not affect the <em>shape</em> of the distribution we are trying to find.</p>
-<p>So let's focus on</p>
-$$
-\begin{align}
-E_2 &amp; = \frac{1}{\tau^2 \sigma^2} \left[ (\sigma^2 a^2 + \tau^2) x^2 - 2 (\sigma^2ay - \sigma^2 ab + \tau^2\mu) x \right] \\
-    &amp; = \frac{(\sigma^2 a^2 + \tau^2)}{\tau^2 \sigma^2} \left[ x^2 - 2 \left( \frac{\sigma^2a(y - b) + \tau^2\mu)}{\sigma^2 a^2 + \tau^2} \right)  x \right] \\
-    &amp; = A \left[ x^2 - 2 B x \right] \\
-\end{align}
-$$<p>where</p>
-$$
-\begin{align}
-A &amp; = \frac{(\sigma^2 a^2 + \tau^2)}{\tau^2 \sigma^2}  \\
-B &amp; = \frac{\sigma^2a(y - b) + \tau^2\mu)}{\sigma^2 a^2 + \tau^2} \\
-\end{align}
-$$
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Complete-the-square">Complete the square<a class="anchor-link" href="#Complete-the-square">&#182;</a></h3><p>Now we can "complete the square". This is a really useful technique that allows us to simplify an expression with both $x^2$ and $x$ terms into an expression with a single $(x - \dots)^2$ term.</p>
-$$
-\begin{align}
-E_2 &amp; = A \left[ x^2 - 2 B x \right] \\
-    &amp; = A \left[ (x - B)^2 - B^2 \right] \\
-    &amp; = A (x - B)^2 - A B^2 \\
-\end{align}
-$$<p>To see that the first and second lines of the above equation are equal, just expand the round bracket in the second line.</p>
-<p>Once again, because $A$ and $B$ do not contain $x$, we can discard the final $A B^2$ term here (it just becomes a multiplicative constant in front of our distribution).</p>
-<p>So we have found that</p>
-$$
-P(X = x | Y = y) \propto \exp \left\{ -\frac{1}{2} A (x - B)^2 \right\}
-$$
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Relabel">Relabel<a class="anchor-link" href="#Relabel">&#182;</a></h3><p>Notice that in the case we are considering, $\sigma^2$, $\tau^2$ and $a^2$ and all $&gt; 0$.</p>
-<p>$\sigma^2$ and $\tau^2$ are variances, so must be greater than zero for the problem to be interesting. $a$ must be non-zero, otherwise the mean of $Y$ does not actually depend on $X$ at all, and the problem doesn't make sense.</p>
-<p>This means that the quantity $A$ is always greater than 0. So it's legitimate to define</p>
-$$
-D = 1 / \sqrt{A} \iff D^2 = 1 / A \iff A = 1/D^2
-$$<p>This gives</p>
-$$
-\begin{align}
-D^2 = \frac{\tau^2 \sigma^2}{\sigma^2 a^2 + \tau^2}
-\end{align}
-$$<p>and we then have</p>
-$$
-\begin{align}
-P(X = x | Y = y) \propto \exp \left\{ -\frac{1}{2} \frac{(x - B)^2}{D^2} \right\}
-\end{align}
-$$
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="A-fantastically-useful-trick">A fantastically useful trick<a class="anchor-link" href="#A-fantastically-useful-trick">&#182;</a></h3><p>Here, we use another really useful trick that mathematicians working with probability distributions use a lot: we <em>recognise</em> that this is the pdf of the Normal distribution.</p>
-<p>We have shown that $X|Y$ has a pdf which is proportional to</p>
-$$
-\begin{align}
-\exp \left\{ -\frac{1}{2} \frac{(x - B)^2}{D^2} \right\}
-\end{align}
-$$<p>and we know that this is the shape of the pdf of a Normally distributed random variable with mean $B$ and variance $D^2$.</p>
-
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Constants-taken-care-of">Constants taken care of<a class="anchor-link" href="#Constants-taken-care-of">&#182;</a></h3><p>So all of those multiplicative constants we discarded along the way don't matter at all. We know that the shape of the distribution is Normal($A, D^2$), and so we know that the normalising constant must be</p>
-$$
-\begin{align}
-\frac{1}{\sqrt{2 \pi} D}
-\end{align}
-$$<p>If we had retained all those multiplicative constants throughout our calculation, and gone to the effort of simplifying them, the result would have been exactly $\frac{1}{\sqrt{2 \pi} D}$, since this is the only constant that makes the final distribution integrate to 1.</p>
-<p>So we're done!</p>
-$$
-X | Y \sim N \left(B, D^2 \right)
-$$
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Final-result">Final result<a class="anchor-link" href="#Final-result">&#182;</a></h3><p>So, we have shown that when</p>
-$$X \sim N(\mu, \sigma^2)$$<p>and the distribution of $Y$ <b>conditional on the value of</b> $X$ is</p>
-$$ Y | X \sim N(aX + b, \tau^2)$$<p>then the distribution of $X$ conditional on the value of $Y$ is</p>
-$$X | Y \sim N(\mu', \sigma'^2)$$<p>where</p>
-$$
-\begin{align}
-\mu' = \frac{\sigma^2 a(y - b) + \tau^2 \mu}{\sigma^2 a^2 + \tau^2}
-\end{align}
-$$<p>and</p>
-$$
-\begin{align}
-\sigma'^2 = \frac{\tau^2 \sigma^2}{\sigma^2 a^2 + \tau^2}
-\end{align}
-$$
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Special-Cases">Special Cases<a class="anchor-link" href="#Special-Cases">&#182;</a></h3><p>There are a couple of special cases of the above formula that will be very useful in the proof of the 1D Kalman filter. Let's look at them now.</p>
-
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Special-case:-1">Special case: 1<a class="anchor-link" href="#Special-case:-1">&#182;</a></h3><p>Suppose we have a state $X$</p>
-$$X \sim N(\mu, \sigma^2)$$<p>and an observation $Z$ of $X$, that is centered on the true state, but with some error:</p>
-$$Z | X \sim N(X, r^2)$$<p>Then we can replace $Y$ with $Z$ in the formulas above, and we have $a = 1, b = 0$. Therefore</p>
-$$X | Z \sim N(\mu', \sigma'^2)$$<p>where</p>
-$$
-\begin{align}
-\mu' = \frac{\sigma^2 z + r^2 \mu}{\sigma^2 + r^2}
-\end{align}
-$$<p>and</p>
-$$
-\begin{align}
-\sigma'^2 = \frac{r^2 \sigma^2}{\sigma^2 + r^2}
-\end{align}
-$$
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<p>This result will be very useful in deriving the Kalman filter equations.</p>
-
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<p>We can rearrange the formula for $\mu'$ a bit:</p>
-$$
-\begin{align}
-\mu' &amp; = \frac{\sigma^2 z + r^2 \mu}{\sigma^2 + r^2} \\
-     &amp; = \frac{\sigma^2 z + r^2 \mu + \sigma^2 \mu - \sigma^2 \mu}{\sigma^2 + r^2} \\
-     &amp; = \frac{\sigma^2 z + (\sigma^2 + r^2) \mu - \sigma^2 \mu}{\sigma^2 + r^2} \\
-     &amp; = \mu + \frac{\sigma^2 z - \sigma^2 \mu}{\sigma^2 + r^2} \\
-     &amp; = \mu + \frac{\sigma^2 }{\sigma^2 + r^2} (z - \mu)\\
-\end{align}
-$$
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h4 id="Kalman-gain">Kalman gain<a class="anchor-link" href="#Kalman-gain">&#182;</a></h4><p>So we can see here, that when we update from our prior $P(X=x)$ to our posterior $P(X=x | Z=z)$, our new mean is the prior mean $\mu$, adjusted by an amount equal to</p>
-$$
-\begin{align}
-\frac{\sigma^2}{\sigma^2 + r^2}(z - \mu)
-\end{align}
-$$<p>The quantity</p>
-$$
-\begin{align}
-K = \frac{\sigma^2}{\sigma^2 + r^2}
-\end{align}
-$$<p>tells us how far we move <em>from</em> our prior mean $\mu$ <em>towards</em> the observation $z$. This quantity is often called the "Kalman gain" when using a Kalman filter.</p>
-
-</div>
-</div>
-<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>This looks a bit complicated. Let's break it down in words.</p>
 <ul>
-<li>if the Kalman gain is 1, we trust our observation completely, and our posterior is centered on the observation itself</li>
-<li>if the Kalman gain is 0, we do not trust our observation at all, and our posterior is centered on the prior mean</li>
-<li>if the Kalman gain $K$ is between 0 and 1, our posterior mean is located a proportion $K$ towards the observation from the prior mean</li>
+<li><p>For our next value of $\theta$, we choose the value of $\theta$ which maximises the expression shown for $g_t(\theta)$</p>
+</li>
+<li><p>When calculating the expression, the numerator in the fraction depends on $\theta$ (i.e. the parameters we are maximising over) but the other terms use only the current value of $\theta^{(t)}$</p>
+</li>
 </ul>
+<blockquote><p>That second bullet point is quite important. The terms involving $\theta^{(t)}$ don't vary as we vary $\theta$ when we perform the maximisation. They're fixed because they're calculated from $\theta^{(t)}$, our current best guess (and the observed data $z$, and the hidden data $x$ (although the final expression doesn't depend on $x$, because we sum over all possible values of $x$)).</p>
+</blockquote>
 
 </div>
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h4 id="Precision-instead-of-variance">Precision instead of variance<a class="anchor-link" href="#Precision-instead-of-variance">&#182;</a></h4><p>We can also rearrange the formula for the posterior variance. Suppose that we had parameterised our Normal distributions not by their variances, but by their <em>precisions</em>, where</p>
-$$
-\begin{align}
-\text{precision} = 1/\text{variance}
-\end{align}
-$$<p>Therefore,</p>
-<ul>
-<li>precision is large when variance is small, (that is, when we know the likely state very accurately)</li>
-<li>precision is small when variance is large</li>
-</ul>
-<p>Then the precision for our posterior is given by</p>
-$$
-\begin{align}
-\frac{1}{\sigma'^2} 
-&amp; = \frac{\sigma^2 + r^2}{r^2 \sigma^2} \\
-&amp; = \frac{1}{r^2} + \frac{1}{\sigma^2} 
-\end{align}
-$$<p>Incredibly, the precision for our posterior is simply the sum of</p>
-<ul>
-<li>the precision of our prior, and </li>
-<li>the precision of the observation</li>
-</ul>
-<p>What a beautifully simple formula!</p>
-<p>Note that in this special case, the posterior precision is <em>larger</em> than the prior precision (by $1/r^2$), so our posterior is a narrower distribution than our prior. This makes sense: we can be more confident about $X$ when we have the extra information provided by the observation $Z$.</p>
+<p>Then from the definition of the update law, we have</p>
+$$ g_t(\theta^{(t)}) \ge g_t(\theta^{(t+1)}) $$<p>since by definition $\theta^{(t+1)}$ is the value that <strong>maximises</strong> $g_t(\theta)$.</p>
+<blockquote><p>$\theta^{(t)}$ is one possible value of $\theta$, but we maximise over all possible values. So this guarantees that $$ g_t(\theta^{(t)}) \ge g_t(\theta^{(t+1)})$$</p>
+</blockquote>
 
 </div>
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h3 id="Special-case:-2">Special case: 2<a class="anchor-link" href="#Special-case:-2">&#182;</a></h3><p>Suppose we have a state $X_1$</p>
-$$X_1 \sim N(\mu_1, \sigma_1^2)$$<p>and a next state $X_2$ that depends on $X_1$ via the relationship</p>
-$$ X_2 | X_1 \sim N(X_1 + u, q^2)$$<p>Then we can replace $Y$ in our original derivation with $X_2$, and we have $a = 1, b = u$. Therefore</p>
-$$ X_1 | X_2 \sim N(\mu', \sigma'^2)$$<p>where</p>
+<p>Also note that if we put $\theta^{(t)}$ into our function $g$, then we get $\log P(z |\ \theta^{(t)})$.</p>
+$$g(\theta^{(t)} = P(z\ |\ \theta^{(t)}$$
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Also note that by the argument in the Preliminaries section, $g(\theta)$ is a lower bound on $P(z\ |\ \theta)$.</p>
+$$g(\theta^{(t+1)} \le P(z\ |\ \theta^{(t+1)}$$
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>So the update rule we have defined allows us to move from a set of parameters $\theta^{(t)}$ to a new set of parameters $\theta^{(t+1)}$.</p>
+<p>Using the inequalities above, we have</p>
+$$P(z\ |\ \theta^{(t)}) = g_t(\theta^{(t)}) \le g_t(\theta^{(t+1)}) \le P(z\ |\ \theta^{(t+1)})$$<p>So our new set of parameters $\theta^{(t+1)}$ give us a better log likelihood than the previous set of parameters $\theta^{(t)}$. This is great news! We can keep applying the algorithm recursively and we will reach a maximum of the log-likelihood.</p>
+<p>This might, in unfortunate cases, be a <em>local</em> maximum rather than a global one. It's hard to solve problems with unobserved data. But this is still a great way to iterate towards a sensible solution, and in many cases the technique shown here will allow us to find a global maximum likelihood estimate for $\theta$.</p>
+
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h3 id="A-slightly-simplified-update-rule">A slightly simplified update rule<a class="anchor-link" href="#A-slightly-simplified-update-rule">&#182;</a></h3><p>Note that in the update rule above we are choosing a value of $\theta$ that maximises $g_t(\theta)$. The numerator in the logarithm in the definition of $g_t(\theta)$ allowed us to use the results from the Preliminaries section to prove that the iterative solution will improve our log-likelihood.</p>
+<p>But in fact the numerator doesn't affect the value of $\theta^{(t+1)}$. We can remove it with some algebra, using the properties of logs:</p>
+\begin{align*}
+g_t(\theta) 
+&amp; = \sum_x P(x | z, \theta^{(t)}) \log \left( \frac{ P(z, x |\ \theta)}{P(x | z, \theta^{(t)})} \right) \\
+&amp; = \sum_x P(x | z, \theta^{(t)}) \left( \log P(z, x |\ \theta) - \log P(x | z, \theta^{(t)}) \right) \\
+&amp; = \sum_x P(x | z, \theta^{(t)}) \log P(z, x |\ \theta) - \sum_x P(x | z, \theta^{(t)}) \log P(x | z, \theta^{(t)}) \\
+\end{align*}
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Note that the second sum here does not depend on $\theta$, which is the thing we're varying when looking for the argmax, so we can forget about it and use the update rule</p>
 $$
-\begin{align}
-\mu' = \frac{\sigma^2 (x_2 - u) + q^2 \mu}{\sigma^2 + q^2}
-\end{align}
-$$<p>and</p>
+\theta^{(t + 1)} = \arg\!\max_{\theta} h_t(\theta)
+$$<p>where 
 $$
-\begin{align}
-\sigma'^2 = \frac{q^2 \sigma^2}{\sigma^2 + q^2}
-\end{align}
-$$<p>This will be a very useful result in the derivation of the Kalman smoother.</p>
+h_t(\theta) = \sum_x P(x | z, \theta^{(t)}) \log P(z, x |\ \theta)
+$$</p>
+<p>This expression is actually just an average, or an <em>expectation</em>. It is the expectation of the log likelihood of the full data (including both observed variables $z$ and hidden variables $x$) where the average is taken over the conditional distribution of the hidden variables $x$ <em>given</em> the observed variables $z$ and the current best guess of the parameters $\theta^{(t)}$.</p>
 
 </div>
 </div>
