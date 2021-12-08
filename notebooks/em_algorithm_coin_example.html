@@ -13981,13 +13981,13 @@ a.anchor-link {
 <p>We are told the results of the tosses, <em>but not which coin was tossed in each experiment</em>.</p>
 <p>So our observed data $z$ is the results of all the coin tosses. This can be condensed into the number of heads thrown in each experiment</p>
 $$ z = [z_0, z_1, z_2, z_3, z_4], 0 \le z_i \le 10$$<p>Our hidden data $x$ is which coin was tossed in which experiment</p>
-$$ x = [x_0, x_1, x_2, x_3, x_4], x_i \in [0, 1]$$<p>And our theta is a vector consisting of all the unknown parameters - both coin biases and the probability of choosing coin 0</p>
+$$ x = [x_0, x_1, x_2, x_3, x_4], x_i \in [0, 1]$$<p>And our $\theta$ is a vector consisting of all the unknown parameters - both coin biases and the probability of choosing coin 0</p>
 $$\theta = [p_0, p_1, \lambda]$$
 </div>
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<p>We're going to use the EM algorithm to estimate these parameters. At each stage we'll have a new best guess of the parameters</p>
+<p>We're going to use the EM algorithm to estimate these parameters. At each stage we'll have a current best guess of the parameters</p>
 $$\theta^{(t)} = [p_0^{(t)}, p_1^{(t)}, \lambda^{(t)}]$$<p>and we'll use the EM algorithm formulas above to make a new guess</p>
 $$\theta^{(t+1)} = [p_0^{(t+1)}, p_1^{(t+1)}, \lambda^{(t+1)}]$$
 </div>
